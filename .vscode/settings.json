@@ -1,0 +1,8 @@
+{
+    "python.analysis.extraPaths": [
+        "../IsaacLab/source/isaaclab",
+        "../IsaacLab/source/isaaclab_rl",
+        "../IsaacLab/source/isaaclab_tasks",
+    ],
+    "cmake.sourceDirectory": "/home/wzx/Documents/DWAM/envs/robots/turtlebot3_description"
+}

@@ -1,0 +1,21 @@
+Metadata-Version: 2.4
+Name: envs
+Version: 0.0.0
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python :: 3.10
+Requires-Python: >=3.10
+Requires-Dist: numpy
+Requires-Dist: torch
+Requires-Dist: prettytable==3.3.0
+Requires-Dist: pymeshlab
+Requires-Dist: open3d
+Requires-Dist: hidapi
+Requires-Dist: skrl==1.4.1
+Requires-Dist: wandb
+Requires-Dist: opencv-python
+Requires-Dist: isaaclab==2.2.0
+Provides-Extra: all
+Dynamic: classifier
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python

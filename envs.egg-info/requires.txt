@@ -1,0 +1,12 @@
+numpy
+torch
+prettytable==3.3.0
+pymeshlab
+open3d
+hidapi
+skrl==1.4.1
+wandb
+opencv-python
+isaaclab==2.2.0
+
+[all]

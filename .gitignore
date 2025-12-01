@@ -1,0 +1,36 @@
+# ===== Python cache and compiled files =====
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/*.pb
+
+# ===== C++ build artifacts =====
+**/cmake-build*/
+**/build*/
+**/*.so
+
+# ===== Logs and output files =====
+logs/
+output/
+outputs/
+wandb/
+runs/
+events.out.tfevents.*
+
+# ===== VSCode and IDE settings =====
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# ===== Omniverse and simulation caches =====
+*.dmp
+.thumbs/
+
+# ===== Other file types =====
+*.zip
+*.mp4
+*_old.*
