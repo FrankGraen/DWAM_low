@@ -365,7 +365,7 @@ class RewardsCfg:
     # decrease reward
     distance_decrease = RewTerm(
         func=mdp.distance_decrease_reward,
-        weight=0.001,
+        weight=0.01,
         params={},
     )
 
@@ -459,7 +459,7 @@ class RewardsCfg:
     
     trajectory_distance_reward = RewTerm(
         func=mdp.trajectory_distance_reward,
-        weight=0.01,
+        weight=0.05,
         params={
             "distance_threshold": 0.2,
         },
