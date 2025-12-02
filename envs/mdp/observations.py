@@ -383,6 +383,10 @@ def get_goal_observation(
     Returns:
         torch.Tensor: The goal observation tensor, shape (num_envs, 2).
     """
+    if not hasattr(env, 'current_trajectories') or env.current_trajectories is None:
+        # If no trajectories available, return zeros
+        return torch.zeros((env.num_envs, 2), device=env.device)
+
     goal_pos = env.current_trajectories[:, -1, :3]  # (num_envs, 3)
     
     robot_pos = env.scene["robot"].data.body_link_state_w[:, 0, :3]  # (num_envs, 3)
