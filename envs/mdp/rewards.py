@@ -664,3 +664,83 @@ def trajectory_following_reward_milestone(
     getattr(env, flag_name)[:] = getattr(env, flag_name) | has_reached
     
     return reward
+
+def trajectory_progress_finish_reward(
+    env: ManagerBasedRLEnv,
+    box_name: str = "box_1",
+    progress_threshold: float = 0.99,
+    distance_threshold: float = 0.2,
+    speed_threshold: float = 0.01,
+    reward_amount: float = 0.2,
+) -> torch.Tensor:
+    """
+    Reward for finishing the trajectory by reaching the target.
+
+    Args:
+        env (ManagerBasedRLEnv): The environment instance.
+        box_name (str): The name of the box entity.
+        command_name (str): The name of the command for the goal pose.
+        finish_threshold (float): Distance threshold to consider trajectory finished.
+        reward_amount (float): Reward amount for finishing the trajectory.
+
+    Returns:
+        torch.Tensor: Reward for finishing the trajectory, shape (num_envs,).
+    """
+    reward = torch.zeros(env.num_envs, device=env.device)
+    if not hasattr(env, 'flag_trajectory_finished'):
+        env.flag_trajectory_finished = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+
+    if hasattr(env, 'trajectory_progress'):
+        progress = env.trajectory_progress
+        distance = env.trajectory_distance
+        
+        # 距离目标足够近
+        distance_mask = distance < distance_threshold
+        
+        # 进度接近完成
+        progress_mask = progress > progress_threshold
+
+        # 距离目标足够近，且进度接近1，且速度足够慢
+        box_lin_vel = env.scene[box_name].data.root_link_vel_w[:, :2]
+        box_speed = torch.norm(box_lin_vel, dim=1)
+    
+        speed_mask = box_speed < speed_threshold
+        final_mask = distance_mask & progress_mask & speed_mask & (~env.flag_trajectory_finished)
+        
+        # 计算时间缩放奖励
+        remaining_steps = env.max_episode_length - env.episode_length_buf
+        reward_scale = remaining_steps / (env.max_episode_length + 1e-8)
+        reward[final_mask] = reward_amount * reward_scale[final_mask]
+        
+        env.flag_trajectory_finished = env.flag_trajectory_finished | final_mask
+
+    return reward
+
+def slow_down_near_finish_reward(
+    env: ManagerBasedRLEnv,
+    box_name: str = "box_1",
+    progress_threshold: float = 0.92,
+    speed_threshold: float = 0.2,
+    reward_amount: float = 0.5,
+) -> torch.Tensor:
+    """
+    Encourage the box to slow down as it nears the end of the trajectory.
+
+    Provides positive reward when the box is near the end and moving
+    slower than the threshold, and a penalty when the box is near the end but still moving fast.
+    """
+    if not hasattr(env, 'trajectory_progress'):
+        return torch.zeros(env.num_envs, device=env.device)
+    
+    progress = env.trajectory_progress
+
+    # Linear speed of the box in the plane
+    box_lin_vel = env.scene[box_name].data.root_link_vel_w[:, :2]
+    box_speed = torch.norm(box_lin_vel, dim=1)
+
+    # Only apply shaping near the end of the trajectory
+    proximity_weight = torch.clamp((progress - progress_threshold) / (1.0 - progress_threshold), min=0.0, max=1.0)
+
+    safe_speed = max(speed_threshold, 1e-3)
+    speed_weight = torch.clamp((safe_speed - box_speed) / safe_speed, min=-1.0, max=1.0)
+    return proximity_weight * speed_weight * reward_amount
