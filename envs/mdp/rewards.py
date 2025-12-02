@@ -152,9 +152,9 @@ def distance_to_box_reward(
 def distance_decrease_reward(
     env: ManagerBasedRLEnv,
     box_name: str = "box_1",
-    command_name: str = "box_target",
+    # command_name: str = "box_target",
     robot_box_weight: float = 1.0,
-    box_goal_weight: float = 2.5,
+    # box_goal_weight: float = 2.5,
     scale: float = 10.0,
 ) -> torch.Tensor:
     """
@@ -173,11 +173,9 @@ def distance_decrease_reward(
     """
     # Calculate current distances
     current_robot_box_dist = get_distance(env, "robot", box_name)  # (num_envs,)
-    current_box_goal_dist = get_distance(env, box_name, None, command_name=command_name)  # (num_envs,)
 
     # Calculate distance decreases (positive if distance reduced)
     decrease_robot_box = env._prev_robot_box_dist - current_robot_box_dist  # (num_envs,)
-    decrease_box_goal = env._prev_box_goal_dist - current_box_goal_dist  # (num_envs,)
     # print(f"[DEBUG] Distance decrease: robot-box={decrease_robot_box}, box-goal={decrease_box_goal}")
 
     if not hasattr(env, "reached_box_flags"):
@@ -186,12 +184,10 @@ def distance_decrease_reward(
     reward = torch.zeros(env.num_envs, device=env.device)
 
     reward[~env.reached_box_flags] += decrease_robot_box[~env.reached_box_flags] * robot_box_weight
-    reward[env.reached_box_flags] += decrease_box_goal[env.reached_box_flags] * box_goal_weight
     reward *= scale
 
     # Update previous distances for next step
     env._prev_robot_box_dist = current_robot_box_dist.clone()
-    env._prev_box_goal_dist = current_box_goal_dist.clone()
 
     # print(f"[DEBUG] Distance decrease reward: {reward}")
     return reward

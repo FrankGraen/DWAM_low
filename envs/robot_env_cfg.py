@@ -359,11 +359,11 @@ class RewardsCfg:
     )
 
     # decrease reward
-    # distance_decrease = RewTerm(
-    #     func=mdp.distance_decrease_reward,
-    #     weight=0.001,
-    #     params={},
-    # )
+    distance_decrease = RewTerm(
+        func=mdp.distance_decrease_reward,
+        weight=0.001,
+        params={},
+    )
 
     # robot reached box one-time reward
     reached_box = RewTerm(
