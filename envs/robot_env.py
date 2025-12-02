@@ -25,7 +25,7 @@ class RobotEnv(ManagerBasedRLEnv):
         self.last_angle_bottom = torch.zeros(self.num_envs, device=self.device)
         # Buffers for distance decrease reward
         self._prev_robot_box_dist = torch.zeros(self.num_envs, device=self.device)  # (num_envs,)
-        # self._prev_box_goal_dist = torch.zeros(self.num_envs, device=self.device)  # (num_envs,)
+        self._prev_box_goal_dist = torch.zeros(self.num_envs, device=self.device)  # (num_envs,)
 
     # ------------------------------ FOV Visualization setup -------------------------------
         self.debug_draw = None
@@ -268,7 +268,9 @@ class RobotEnv(ManagerBasedRLEnv):
 
         # Reset previous distances for distance decrease reward
         self._prev_robot_box_dist[idx] = get_distance(self, "robot", "box_1")[idx]
-        # self._prev_box_goal_dist[idx] = get_distance(self, "box_1", None, command_name="box_target")[idx]
+        goal_pos = self.current_trajectories[:, -1, :3]  # (num_envs, 3)
+        robot_pos = self.scene["box_1"].data.body_link_state_w[:, 0, :3]  # (num_envs, 3)
+        self._prev_box_goal_dist[idx] = torch.norm(goal_pos - robot_pos, dim=1)[idx]
         # Done this way because SKRL requires the "episode" key in the extras dict to be present in order to log.
         self.extras["episode"] = self.extras["log"]
         
