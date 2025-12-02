@@ -463,7 +463,7 @@ class RewardsCfg:
     
     trajectory_progress_reward = RewTerm(
         func=mdp.trajectory_progress_reward,
-        weight=0.015,
+        weight=0.01,
         params={},
     )
     
