@@ -9,6 +9,7 @@ from isaaclab.utils.math import yaw_quat, quat_apply
 
 from isaaclab.sensors import Camera, Imu, RayCaster, RayCasterCamera, TiledCamera
 import isaaclab.utils.math as math_utils
+from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_conjugate
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -355,20 +356,21 @@ def get_trajectory_history_and_future(
     robot_pos = env.scene["robot"].data.root_pos_w[:, :3]  # (B, 3)
     robot_quat = env.scene["robot"].data.root_quat_w  # (B, 4)
     
-    heading = torch.atan2(
-        quat_apply(robot_quat, torch.tensor([0., 1., 0.], device=env.device).expand(env.num_envs, 3))[:, 0],
-        quat_apply(robot_quat, torch.tensor([1., 0., 0.], device=env.device).expand(env.num_envs, 3))[:, 0]
-    )  # (B,)
-    c, s = heading.cos(), heading.sin()
-    Rot = torch.stack([torch.stack([c, -s], dim=1),
-                       torch.stack([s,  c], dim=1)], dim=1)  # (B, 2, 2)
+    robot_pos_expanded = robot_pos.unsqueeze(1).expand(-1, total, -1)  # (B, total, 3)
+    robot_quat_expanded = robot_quat.unsqueeze(1).expand(-1, total, -1)  # (B, total, 4)
     
-    local_result_xy = torch.bmm(result[..., :2] - robot_pos[:, :2].unsqueeze(1), Rot)  # (B, total, 2)
+    local_points = coordinate_transform(
+        sys_pos=robot_pos_expanded.reshape(-1, 3),
+        sys_quat=robot_quat_expanded.reshape(-1, 4),
+        obj_pos=result.reshape(-1, 3)
+    ).reshape(B, total, 3)  # (B, total, 3)
     
+    local_points_xy = local_points[:, :, :2]    # (B, total, 2)
+
     if flatten:
-        return local_result_xy.reshape(B, -1)  # (B, total*2)
+        return local_points_xy.reshape(B, -1)  # (B, total*2)
     else:
-        return local_result_xy  # (B, total, 2)
+        return local_points_xy  # (B, total, 2)
 
 
 
@@ -411,3 +413,18 @@ def get_box_move(
     box_pos = env.scene[box_name].data.body_link_state_w[:, 0, :2]  # (B, 2)
     box_vel = env.scene[box_name].data.root_link_vel_w[:, :2]  # (B, 2)
     return torch.cat([box_pos, box_vel], dim=-1)  # (B, 4)
+
+def coordinate_transform(sys_pos: torch.Tensor, sys_quat: torch.Tensor, obj_pos: torch.Tensor) -> torch.Tensor:
+    """
+    Transform object position from world coordinates to system local coordinates.
+    
+    Args:
+        sys_pos: System position in world frame (B, 3)
+        sys_quat: System quaternion in world frame (B, 4) [w, x, y, z]
+        obj_pos: Object position in world frame (B, 3)
+        
+    Returns:
+        Object position in system local frame (B, 3)
+    """
+    pos_vec = obj_pos - sys_pos
+    return quat_apply_inverse(sys_quat, pos_vec)
