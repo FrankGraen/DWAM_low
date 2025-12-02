@@ -372,7 +372,30 @@ def get_trajectory_history_and_future(
     else:
         return local_points_xy  # (B, total, 2)
 
+def get_goal_observation(
+    env: ManagerBasedRLEnv
+) -> torch.Tensor:
+    """
+    Get the goal observation tensor for the current target position relative to the box.
 
+    Args:
+        env (ManagerBasedRLEnv): The environment instance.
+    Returns:
+        torch.Tensor: The goal observation tensor, shape (num_envs, 2).
+    """
+    goal_pos = env.current_trajectories[:, -1, :3]  # (num_envs, 3)
+    
+    robot_pos = env.scene["robot"].data.body_link_state_w[:, 0, :3]  # (num_envs, 3)
+    robot_quat = env.scene["robot"].data.root_state_w[:, 3:7]  # (num_envs, 4)
+    
+    # Transform goal position to robot local frame
+    goal_pos_local = coordinate_transform(
+        sys_pos=robot_pos,
+        sys_quat=robot_quat,
+        obj_pos=goal_pos
+    )  # (num_envs, 3)
+
+    return goal_pos_local[:, :2]  # (num_envs, 2)
 
 def get_box_position(
     env: ManagerBasedRLEnv,

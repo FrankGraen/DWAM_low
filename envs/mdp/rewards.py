@@ -152,7 +152,7 @@ def distance_to_box_reward(
 def distance_decrease_reward(
     env: ManagerBasedRLEnv,
     box_name: str = "box_1",
-    command_name: str = "box_target",
+    command_name: str = "final_target",
     robot_box_weight: float = 1.0,
     box_goal_weight: float = 2.5,
     scale: float = 10.0,
@@ -173,7 +173,10 @@ def distance_decrease_reward(
     """
     # Calculate current distances
     current_robot_box_dist = get_distance(env, "robot", box_name)  # (num_envs,)
-    current_box_goal_dist = get_distance(env, box_name, None, command_name=command_name)  # (num_envs,)
+    
+    goal_pos = env.current_trajectories[:, -1, :2]  # (num_envs, 2)
+    robot_pos = env.scene["robot"].data.root_link_pos_w[:, :2]  # (num_envs, 2)
+    current_box_goal_dist = torch.norm(robot_pos - goal_pos, dim=1)  # (num_envs,)
 
     # Calculate distance decreases (positive if distance reduced)
     decrease_robot_box = env._prev_robot_box_dist - current_robot_box_dist  # (num_envs,)

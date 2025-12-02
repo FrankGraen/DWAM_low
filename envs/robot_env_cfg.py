@@ -288,7 +288,11 @@ class ObservationCfg:
         #     params={"box_name": "box_1"},
         #     scale=1.0,
         # )
-        
+        goal_observation = ObsTerm(
+            func=mdp.get_goal_observation,
+            params={},
+            scale=0.1,
+        )
         trajectory_observation = ObsTerm(
             func=mdp.get_trajectory_history_and_future,
             params={
@@ -359,11 +363,11 @@ class RewardsCfg:
     )
 
     # decrease reward
-    # distance_decrease = RewTerm(
-    #     func=mdp.distance_decrease_reward,
-    #     weight=0.001,
-    #     params={},
-    # )
+    distance_decrease = RewTerm(
+        func=mdp.distance_decrease_reward,
+        weight=0.001,
+        params={},
+    )
 
     # robot reached box one-time reward
     reached_box = RewTerm(
@@ -461,11 +465,11 @@ class RewardsCfg:
         },
     )
     
-    trajectory_progress_reward = RewTerm(
-        func=mdp.trajectory_progress_reward,
-        weight=0.015,
-        params={},
-    )
+    # trajectory_progress_reward = RewTerm(
+    #     func=mdp.trajectory_progress_reward,
+    #     weight=0.015,
+    #     params={},
+    # )
     
     trajectory_following_reward_milestone = RewTerm(
         func=mdp.trajectory_following_reward_milestone,
@@ -509,19 +513,19 @@ class RewardsCfg:
     #     params={},
     # )
     
-    trajectory_backward_penalty = RewTerm(
-        func=mdp.trajectory_backward_penalty,
-        weight=-0.006,
-        params={},
-    )
+    # trajectory_backward_penalty = RewTerm(
+    #     func=mdp.trajectory_backward_penalty,
+    #     weight=-0.006,
+    #     params={},
+    # )
     
-    trajectory_jump_penalty = RewTerm(
-        func=mdp.trajectory_jump_penalty,
-        weight=-0.002,
-        params={
-            "jump_threshold": 0.05,    
-        },
-    )
+    # trajectory_jump_penalty = RewTerm(
+    #     func=mdp.trajectory_jump_penalty,
+    #     weight=-0.002,
+    #     params={
+    #         "jump_threshold": 0.05,    
+    #     },
+    # )
     
     # Trajectory progress finish reward
     trajectory_progress_finish = RewTerm(
