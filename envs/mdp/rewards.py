@@ -410,7 +410,7 @@ def trajectory_distance_reward(
     env: ManagerBasedRLEnv,
     box_name: str = "box_1",
     distance_threshold: float = 0.2,
-    reward_scale: float = 0.5,
+    reward_scale: float = 0.1,
 ) -> torch.Tensor:
     """
     Reward based on the distance from the box to the trajectory.
@@ -429,8 +429,8 @@ def trajectory_distance_reward(
     distance = env.trajectory_distance  # Distance from box to trajectory
 
     # Reward scales inversely with distance
-    reward = torch.clamp(distance_threshold - distance, min=0.0) / distance_threshold * reward_scale
-
+    reward = torch.exp( -distance**2 / (2 * distance_threshold**2) )
+    reward = (reward - 0.5) * 2.0 * reward_scale  # Scale to [0, reward_scale]
     reward[~env.reached_box_flags] = 0.0  # Only apply reward if the robot has reached the box
     # print("[DEBUG] Trajectory distance reward:", reward)
     return reward
@@ -520,32 +520,32 @@ def trajectory_velocity_alignment_reward(
 
     return velocity_alignment_reward
 
-def trajectory_off_track_penalty(
-    env: ManagerBasedRLEnv,
-    distance_threshold: float = 0.2,
-    off_track_penalty: float = 0.1,
-) -> torch.Tensor:
-    """
-    Penalty for being off the trajectory.
+# def trajectory_off_track_penalty(
+#     env: ManagerBasedRLEnv,
+#     distance_threshold: float = 0.2,
+#     off_track_penalty: float = 0.5,
+# ) -> torch.Tensor:
+#     """
+#     Penalty for being off the trajectory.
 
-    Args:
-        env (ManagerBasedRLEnv): The environment instance.
-        distance_threshold (float): The distance threshold for off-track penalty.
-        off_track_penalty (float): The penalty value when off-track.
+#     Args:
+#         env (ManagerBasedRLEnv): The environment instance.
+#         distance_threshold (float): The distance threshold for off-track penalty.
+#         off_track_penalty (float): The penalty value when off-track.
 
-    Returns:
-        torch.Tensor: The trajectory off-track penalty, shape (num_envs,).
-    """
-    if not hasattr(env, 'trajectory_distance'):
-        return torch.zeros(env.num_envs, device=env.device)
+#     Returns:
+#         torch.Tensor: The trajectory off-track penalty, shape (num_envs,).
+#     """
+#     if not hasattr(env, 'trajectory_distance'):
+#         return torch.zeros(env.num_envs, device=env.device)
     
-    distance = env.trajectory_distance
-    off_track_mask = distance > (distance_threshold)
-    off_track_penalty_value = off_track_penalty * (distance - distance_threshold)
-    off_track_penalty = torch.zeros(env.num_envs, device=env.device)
-    off_track_penalty[off_track_mask] = off_track_penalty_value[off_track_mask]
-    off_track_penalty[~env.reached_box_flags] = 0.0  # Only apply penalty if the robot has reached the box
-    return off_track_penalty
+#     distance = env.trajectory_distance
+#     off_track_mask = distance > (distance_threshold)
+#     off_track_penalty_value = off_track_penalty * (distance - distance_threshold)
+#     off_track_penalty = torch.zeros(env.num_envs, device=env.device)
+#     off_track_penalty[off_track_mask] = off_track_penalty_value[off_track_mask]
+#     off_track_penalty[~env.reached_box_flags] = 0.0  # Only apply penalty if the robot has reached the box
+#     return off_track_penalty
 
 def trajectory_backward_penalty(
     env: ManagerBasedRLEnv,

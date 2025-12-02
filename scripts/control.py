@@ -176,6 +176,7 @@ def run_simulator(env):
             # Print debug information
             if count % 1 == 0:
                 env.print_rewards()
+                env.print_observations()
             # if count % 1 == 0:
                 # print(f"{'[Env 0]: Robot obs:' if 'policy' in obs else 'No policy obs'}, dis_box:{obs.get('policy', torch.zeros(1, 1))[0][2:3]}, ang_box:{obs.get('policy', torch.zeros(1, 1))[0][3:4]}")
                 # print(f"{'[Env 0]: Robot obs:' if 'policy' in obs else 'No policy obs'}, dis_box_goal:{obs.get('policy', torch.zeros(1, 1))[0][4:5]}, ang_goal:{obs.get('policy', torch.zeros(1, 1))[0][5:6]}")

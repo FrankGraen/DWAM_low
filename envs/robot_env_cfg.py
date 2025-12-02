@@ -277,17 +277,17 @@ class ObservationCfg:
         #     scale=1.0 / math.pi  # Normalize to [-1, 1]
         # )
         
-        robot_move_observation = ObsTerm(
-            func=mdp.get_robot_move,
-            params={},
-            scale=1.0,
-        )
+        # robot_move_observation = ObsTerm(
+        #     func=mdp.get_robot_move,
+        #     params={},
+        #     scale=1.0,
+        # )
         
-        box_move_observation = ObsTerm(
-            func=mdp.get_box_move,
-            params={"box_name": "box_1"},
-            scale=1.0,
-        )
+        # box_move_observation = ObsTerm(
+        #     func=mdp.get_box_move,
+        #     params={"box_name": "box_1"},
+        #     scale=1.0,
+        # )
         
         trajectory_observation = ObsTerm(
             func=mdp.get_trajectory_history_and_future,
@@ -296,7 +296,7 @@ class ObservationCfg:
                 "future_steps": 3,
                 "flatten": True,
             },
-            scale=2.0,  # Scale the trajectory points
+            scale=0.1,  # Scale the trajectory points
         )
         
         def __post_init__(self):
@@ -503,11 +503,11 @@ class RewardsCfg:
         params={},
     )
     
-    trajectory_off_track_penalty = RewTerm(
-        func=mdp.trajectory_off_track_penalty,
-        weight=-0.004,
-        params={},
-    )
+    # trajectory_off_track_penalty = RewTerm(
+    #     func=mdp.trajectory_off_track_penalty,
+    #     weight=-0.01,
+    #     params={},
+    # )
     
     trajectory_backward_penalty = RewTerm(
         func=mdp.trajectory_backward_penalty,

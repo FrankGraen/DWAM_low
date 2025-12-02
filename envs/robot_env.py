@@ -3,6 +3,7 @@ import os
 from isaaclab.envs.common import VecEnvObs
 from isaaclab.envs.manager_based_rl_env import ManagerBasedRLEnv
 from datetime import datetime
+import numpy as np
 
 from .robot_env_cfg import RobotEnvCfg
 from envs.mdp import get_distance  # Import get_distance for reset
@@ -76,6 +77,23 @@ class RobotEnv(ManagerBasedRLEnv):
             with open(reward_file, "a") as f:
                 f.write(f"{value}\n")
         print("================================\n")
+    
+    def print_observations(self):
+        """打印观测详情（专为 Isaac Lab ObservationManager 优化）"""
+        print("\n=== Observation Details (Env 0) ===")
+
+        # 直接取 policy 组的完整观测（已拼接好）
+        full_obs = self.observation_manager._obs_buffer["policy"][0].cpu().numpy()
+        names = self.observation_manager.active_terms["policy"]
+        dims = self.observation_manager.group_obs_term_dim["policy"]
+
+        ptr = 0
+        for name, dim in zip(names, dims):
+            value = full_obs[ptr:ptr + dim[0]]  # dim 是 tuple 如 (4,)
+            print(f"  {name:30s} {str(value.shape):<8} {np.array2string(value, precision=4, suppress_small=True)}")
+            ptr += dim[0]
+
+        print("=====================================\n")
 
     def _init_debug_draw(self):
         """Initialize the debug draw interface for FOV visualization."""
