@@ -248,21 +248,20 @@ class ObservationCfg:
         #     scale=1.0
         # )
 
-        # # FOV-based goal observation
-        # fov_goal_observation = ObsTerm(
-        #     func=mdp.get_fov_based_goal_observation,
-        #     params={
-        #         "command_name": "box_target",
-        #         "robot_name": "robot",
-        #         "h_fov": FOV_CONFIG["h_fov"],
-        #         "v_fov": FOV_CONFIG["v_fov"],
-        #         "focal_length": FOV_CONFIG["focal_length"],
-        #         "max_detection_distance": FOV_CONFIG["max_detection_distance"],
-        #         "mask_value": FOV_CONFIG["mask_value"],
-        #         "is_deg": FOV_CONFIG["is_deg"]
-        #     },
-        #     scale=0.1
-        # )
+        # FOV-based goal observation
+        fov_goal_observation = ObsTerm(
+            func=mdp.get_fov_based_goal_observation,
+            params={
+                "robot_name": "robot",
+                "h_fov": FOV_CONFIG["h_fov"],
+                "v_fov": FOV_CONFIG["v_fov"],
+                "focal_length": FOV_CONFIG["focal_length"],
+                "max_detection_distance": FOV_CONFIG["max_detection_distance"],
+                "mask_value": FOV_CONFIG["mask_value"],
+                "is_deg": FOV_CONFIG["is_deg"]
+            },
+            scale=0.1
+        )
 
         # Original goal observations (for comparison)
         # distance_robot_goal = ObsTerm(
@@ -288,16 +287,16 @@ class ObservationCfg:
         #     params={"box_name": "box_1"},
         #     scale=1.0,
         # )
-        goal_observation = ObsTerm(
-            func=mdp.get_goal_observation,
-            params={},
-            scale=0.1,
-        )
+        # goal_observation = ObsTerm(
+        #     func=mdp.get_goal_observation,
+        #     params={},
+        #     scale=0.1,
+        # )
         trajectory_observation = ObsTerm(
             func=mdp.get_trajectory_history_and_future,
             params={
-                "past_steps": 1,
-                "future_steps": 3,
+                "past_steps": 0,
+                "future_steps": 2,
                 "flatten": True,
             },
             scale=0.1,  # Scale the trajectory points

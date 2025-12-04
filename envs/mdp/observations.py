@@ -16,25 +16,12 @@ if TYPE_CHECKING:
 
 def distance_robot_to_goal(
     env: ManagerBasedRLEnv,
-    command_name: str,
 ) -> torch.Tensor:
     """
     Calculate the distance from the robot to the goal position.
     """
-    # Get goal offset in box_1's local frame: (pos + quat)
-    goal_offset = env.command_manager.get_command(command_name)  # (num_envs, 7)
-
-    # Get box_1 world pose: position and quaternion
-    box_data = env.scene["box_1"].data.body_link_state_w[:, 0, :7]  # [x, y, z, qw, qx, qy, qz]
-    box_pos = box_data[:, :3]
-    box_quat = box_data[:, 3:7]
-
-    # Rotate local offset to world frame
-    offset_pos_local = goal_offset[:, :3]  # (B, 3)
-    offset_pos_world = quat_apply(box_quat, offset_pos_local)  # (B, 3)
-
-    # Final world position of goal
-    goal_pos = (box_pos + offset_pos_world)[:, :2]  # (B, 2)
+    # world position of goal
+    goal_pos = env.goal_position[:, :2] # (num_envs, 2)
 
     # Get robot position
     robot_pos = env.scene["robot"].data.body_link_state_w[:, 0, :2]
@@ -43,27 +30,15 @@ def distance_robot_to_goal(
 
 def angle_robot_to_goal(
     env: ManagerBasedRLEnv,
-    command_name: str,
 ) -> torch.Tensor:
     """
     Calculate the angle between the line connecting the robot and the goal 
     and the x-axis of the robot, in the robot's local frame.
     The goal is defined relative to box_1's local frame and converted to world coordinates.
     """
-    # Get goal offset in box_1's local frame: (pos + quat)
-    goal_offset = env.command_manager.get_command(command_name)  # (num_envs, 7)
-
-    # Get box_1 world pose: position and quaternion
-    box_data = env.scene["box_1"].data.body_link_state_w[:, 0, :7]  # [x, y, z, qw, qx, qy, qz]
-    box_pos = box_data[:, :3]
-    box_quat = box_data[:, 3:7]
-
-    # Rotate local offset to world frame
-    offset_pos_local = goal_offset[:, :3]  # (B, 3)
-    offset_pos_world = quat_apply(box_quat, offset_pos_local)  # (B, 3)
 
     # Final world position of goal
-    goal_pos = box_pos + offset_pos_world  # (B, 3)
+    goal_pos = env.goal_position  # (B, 3)
 
     # Get robot position
     robot_pos = env.scene["robot"].data.body_link_state_w[:, 0, :3]

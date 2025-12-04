@@ -271,7 +271,6 @@ def get_fov_visibility_flags(
 
 def get_fov_based_goal_observation(
     env: ManagerBasedRLEnv,
-    command_name: str,
     robot_name: str = "robot",
     h_fov: float = 90.0,
     v_fov: float = 60.0,
@@ -304,18 +303,11 @@ def get_fov_based_goal_observation(
     batch_size = robot_pos.shape[0]
     
     # Get distance and angle to goal using existing functions
-    distance = distance_robot_to_goal(env, command_name)  # (B, 1)
-    angle = angle_robot_to_goal(env, command_name)  # (B, 1)
+    distance = distance_robot_to_goal(env)  # (B, 1)
+    angle = angle_robot_to_goal(env)  # (B, 1)
     
     # Get goal position for FOV check
-    goal_offset = env.command_manager.get_command(command_name)
-    box_data = env.scene["box_1"].data.root_state_w[:, :7]
-    box_pos = box_data[:, :3]
-    box_quat = box_data[:, 3:7]
-    
-    offset_pos_local = goal_offset[:, :3]
-    offset_pos_world = quat_apply(box_quat, offset_pos_local)
-    goal_pos = box_pos + offset_pos_world
+    goal_pos = env.goal_position  # (B, 3)
     
     # Expand goal position for FOV check
     goal_pos_expanded = goal_pos.unsqueeze(1)  # (B, 1, 3)

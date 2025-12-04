@@ -48,6 +48,7 @@ class RobotEnv(ManagerBasedRLEnv):
         self.trajectory_distance = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self._prev_closest_points = torch.zeros((self.num_envs, 3), dtype=torch.float, device=self.device)
         self._prev_trajectory_progress = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+        self.goal_position = torch.ones((self.num_envs, 3), dtype=torch.float, device=self.device) * 100  # Placeholder for goal position
     
     # ------------------------------- Print Rewards setup -------------------------------
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -268,23 +269,14 @@ class RobotEnv(ManagerBasedRLEnv):
 
         # Reset previous distances for distance decrease reward
         self._prev_robot_box_dist[idx] = get_distance(self, "robot", "box_1")[idx]
+        
+        self.goal_position[idx] = self.current_trajectories[idx, 1, :3]  # (num_envs, 3)
+
         goal_pos = self.current_trajectories[:, -1, :3]  # (num_envs, 3)
         robot_pos = self.scene["box_1"].data.body_link_state_w[:, 0, :3]  # (num_envs, 3)
         self._prev_box_goal_dist[idx] = torch.norm(goal_pos - robot_pos, dim=1)[idx]
         # Done this way because SKRL requires the "episode" key in the extras dict to be present in order to log.
         self.extras["episode"] = self.extras["log"]
-        
-        # get new trajectories for the reset environments
-        # box_pos = self.scene["box_1"].data.body_link_state_w[:, 0, :3][idx]  # get the 3D position of the box
-        # new_trajectories = self.trajectory_generator.generate_trajectories(start_pos=box_pos, num_envs=len(idx), env_ids=idx)
-        # if self.current_trajectories is None:
-        #     self.current_trajectories = torch.zeros(
-        #         self.num_envs,
-        #         self.cfg.trajectory_cfg.num_waypoints,
-        #         3,
-        #         device=self.device
-        #     ) # initialize if None
-        # self.current_trajectories[idx] = new_trajectories
         
         if hasattr(self, 'trajectory_progress'):
             self.trajectory_progress[idx] = 0.0  # reset progress index for these envs
@@ -354,6 +346,13 @@ class RobotEnv(ManagerBasedRLEnv):
         self.trajectory_progress = progresses
         self.trajectory_distance = distances
         self.trajectory_closest_points = closest_points
+        
+        # 根据closeset_indices更新goal_position
+        next_indices = torch.clamp(closest_indices + 1, max=self.current_trajectories.shape[1] - 1)
+        self.goal_position = torch.stack([
+            self.current_trajectories[i, next_indices[i], :3]
+            for i in range(self.num_envs)
+        ], dim=0)  # (num_envs, 3)
         
         # self.trajectory_tracking_distance = distances   # distance bias for reward computation
         self.extras['trajectory_progress'] = progresses
