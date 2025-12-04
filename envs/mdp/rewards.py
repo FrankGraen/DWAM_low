@@ -152,9 +152,8 @@ def distance_to_box_reward(
 def distance_decrease_reward(
     env: ManagerBasedRLEnv,
     box_name: str = "box_1",
-    command_name: str = "final_target",
     robot_box_weight: float = 1.0,
-    # box_goal_weight: float = 2.5,
+    box_goal_weight: float = 2.5,
     scale: float = 10.0,
 ) -> torch.Tensor:
     """
@@ -163,7 +162,6 @@ def distance_decrease_reward(
     Args:
         env (ManagerBasedRLEnv): The environment instance.
         box_name (str): The name of the box entity.
-        command_name (str): The name of the command for the goal pose.
         robot_box_weight (float): Weight for robot-to-box distance decrease.
         box_goal_weight (float): Weight for box-to-goal distance decrease.
         scale (float): Scaling factor for the combined reward.
@@ -174,12 +172,13 @@ def distance_decrease_reward(
     # Calculate current distances
     current_robot_box_dist = get_distance(env, "robot", box_name)  # (num_envs,)
     
-    goal_pos = env.current_trajectories[:, -1, :2]  # (num_envs, 2)
+    goal_pos = env.goal_positions[:, :2]  # (num_envs, 2)
     robot_pos = env.scene["robot"].data.root_link_pos_w[:, :2]  # (num_envs, 2)
     current_box_goal_dist = torch.norm(robot_pos - goal_pos, dim=1)  # (num_envs,)
 
     # Calculate distance decreases (positive if distance reduced)
     decrease_robot_box = env._prev_robot_box_dist - current_robot_box_dist  # (num_envs,)
+    decrease_box_goal = env._prev_box_goal_dist - current_box_goal_dist  # (num_envs,)
     # print(f"[DEBUG] Distance decrease: robot-box={decrease_robot_box}, box-goal={decrease_box_goal}")
 
     if not hasattr(env, "reached_box_flags"):
@@ -188,10 +187,12 @@ def distance_decrease_reward(
     reward = torch.zeros(env.num_envs, device=env.device)
 
     reward[~env.reached_box_flags] += decrease_robot_box[~env.reached_box_flags] * robot_box_weight
+    reward[env.reached_box_flags] += decrease_box_goal[env.reached_box_flags] * box_goal_weight
     reward *= scale
 
     # Update previous distances for next step
     env._prev_robot_box_dist = current_robot_box_dist.clone()
+    env._prev_box_goal_dist = current_box_goal_dist.clone()
 
     # print(f"[DEBUG] Distance decrease reward: {reward}")
     return reward
@@ -664,10 +665,6 @@ def trajectory_following_reward_milestone(
 
 def trajectory_progress_finish_reward(
     env: ManagerBasedRLEnv,
-    box_name: str = "box_1",
-    progress_threshold: float = 0.99,
-    distance_threshold: float = 0.2,
-    speed_threshold: float = 0.01,
     reward_amount: float = 0.2,
 ) -> torch.Tensor:
     """
@@ -675,9 +672,6 @@ def trajectory_progress_finish_reward(
 
     Args:
         env (ManagerBasedRLEnv): The environment instance.
-        box_name (str): The name of the box entity.
-        command_name (str): The name of the command for the goal pose.
-        finish_threshold (float): Distance threshold to consider trajectory finished.
         reward_amount (float): Reward amount for finishing the trajectory.
 
     Returns:
@@ -686,58 +680,98 @@ def trajectory_progress_finish_reward(
     reward = torch.zeros(env.num_envs, device=env.device)
     if not hasattr(env, 'flag_trajectory_finished'):
         env.flag_trajectory_finished = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
-
-    if hasattr(env, 'trajectory_progress'):
-        progress = env.trajectory_progress
-        distance = env.trajectory_distance
-        
-        # 距离目标足够近
-        distance_mask = distance < distance_threshold
-        
-        # 进度接近完成
-        progress_mask = progress > progress_threshold
-
-        # 距离目标足够近，且进度接近1，且速度足够慢
-        box_lin_vel = env.scene[box_name].data.root_link_vel_w[:, :2]
-        box_speed = torch.norm(box_lin_vel, dim=1)
     
-        speed_mask = box_speed < speed_threshold
-        final_mask = distance_mask & progress_mask & speed_mask & (~env.flag_trajectory_finished)
+    if hasattr(env, 'num_finish_goals'):
+        num_finish_goals = env.num_finish_goals #(num_envs,)
+        total_goals = env.total_goals # int
+        finished_mask = num_finish_goals == total_goals # (num_envs,)
+        just_finished_mask = finished_mask & (~env.flag_trajectory_finished)
         
         # 计算时间缩放奖励
         remaining_steps = env.max_episode_length - env.episode_length_buf
         reward_scale = remaining_steps / (env.max_episode_length + 1e-8)
-        reward[final_mask] = reward_amount * reward_scale[final_mask]
+        reward[just_finished_mask] = reward_amount * reward_scale[just_finished_mask]
         
-        env.flag_trajectory_finished = env.flag_trajectory_finished | final_mask
+        env.flag_trajectory_finished |= just_finished_mask
 
     return reward
 
-def slow_down_near_finish_reward(
+def slow_down_near_goal_reward(
     env: ManagerBasedRLEnv,
     box_name: str = "box_1",
-    progress_threshold: float = 0.92,
+    distance_threshold: float = 0.2,
     speed_threshold: float = 0.2,
     reward_amount: float = 0.5,
 ) -> torch.Tensor:
     """
-    Encourage the box to slow down as it nears the end of the trajectory.
-
-    Provides positive reward when the box is near the end and moving
-    slower than the threshold, and a penalty when the box is near the end but still moving fast.
+    Encourage the box to slow down as it approaches the goal.
+    Provides positive reward when the box is close to the target and moving
+    Pargs:
+        env (ManagerBasedRLEnv): The environment instance.
+        box_name (str): The name of the box entity.
+        distance_threshold (float): The distance threshold for slowing down.
+        speed_threshold (float): The speed threshold for slowing down.
+        reward_amount (float): The maximum reward amount.
+    Returns:
+        torch.Tensor: The slow down near goal reward, shape (num_envs,).
     """
-    if not hasattr(env, 'trajectory_progress'):
-        return torch.zeros(env.num_envs, device=env.device)
     
-    progress = env.trajectory_progress
-
+    # distance from box to goal
+    box_pos = env.scene[box_name].data.body_link_state_w[:, 0, :2]  # (num_envs, 2)
+    goal_pos = env.goal_positions[:, :2]  # (num_envs, 2)
+    distance = torch.norm(box_pos - goal_pos, dim=1)
+    
+    # linear speed of the box in the plane
     # Linear speed of the box in the plane
     box_lin_vel = env.scene[box_name].data.root_link_vel_w[:, :2]
     box_speed = torch.norm(box_lin_vel, dim=1)
 
-    # Only apply shaping near the end of the trajectory
-    proximity_weight = torch.clamp((progress - progress_threshold) / (1.0 - progress_threshold), min=0.0, max=1.0)
+    # Only apply shaping close to the goal
+    proximity_weight = torch.clamp((distance_threshold - distance) / distance_threshold, min=0.0, max=1.0)
 
     safe_speed = max(speed_threshold, 1e-3)
     speed_weight = torch.clamp((safe_speed - box_speed) / safe_speed, min=-1.0, max=1.0)
     return proximity_weight * speed_weight * reward_amount
+
+def finish_goal_reward(
+    env: ManagerBasedRLEnv,
+    reward_amount: float = 1.0,
+    distance_threshold: float = 0.1,
+    velocity_threshold: float = 0.05,
+) -> torch.Tensor:
+    """
+    Reward for finishing each goal along the trajectory.
+
+    Args:
+        env (ManagerBasedRLEnv): The environment instance.
+        reward_amount (float): Reward amount for finishing each goal.
+
+    Returns:
+        torch.Tensor: Reward for finishing goals, shape (num_envs,).
+    """
+    
+    reward = torch.zeros(env.num_envs, device=env.device)
+    if not hasattr(env, 'flag_reach_goal'):
+        env.flag_reach_goal = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)    # (num_envs,)
+        return reward
+    
+    box = env.scene["box_1"]
+    box_pos = box.data.body_link_state_w[:, 0, :3]  # (num_envs, 3)
+    box_vel = box.data.root_link_vel_w[:, :3]   # (num_envs, 3)
+    box_speed = torch.norm(box_vel, dim=1)  #(num_envs,)
+
+    # arrive the goal
+    goal_pos = env.goal_positions  # (num_envs, 3)
+    pos_error = torch.norm(box_pos - goal_pos, dim=1)  # (num_envs,)
+    reached_pos = pos_error < distance_threshold
+    
+    # velocity check
+    reached_speed = box_speed < velocity_threshold
+    
+    # only reward once
+    reached_goal = reached_pos & reached_speed
+    reward[reached_goal] = reward_amount / env.total_goals # distribute reward over all goals
+    
+    env.flag_reach_goal = reached_goal # update the flag, update the goal in step function
+
+    return reward

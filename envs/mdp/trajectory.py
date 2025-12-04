@@ -14,12 +14,15 @@ if TYPE_CHECKING:
 
 
 def init_trajectory(
-    env: ManagerBasedRLEnv,
+    env: ManagerBasedEnv,
     env_ids: torch.Tensor,
+    box_name: str, 
 ) -> None:
     """Initialize trajectory generator for the environment."""
     cfg = TrajectoryConfig()
     env.trajectory_generator = TrajectoryGenerator(cfg)
-    box_pos = env.scene["box_1"].data.body_link_state_w[:, 0, :3]
+    box_pos = env.scene[box_name].data.body_link_state_w[env_ids, 0, :3]
     new_trajectory = env.trajectory_generator.generate_trajectories(box_pos)
-    env.current_trajectories = new_trajectory
+    if not hasattr(env, "current_trajectories"):
+        env.current_trajectories = torch.zeros(env.num_envs, env.trajectory_generator.cfg.num_waypoints , 3, device=env.device)
+    env.current_trajectories[env_ids] = new_trajectorys

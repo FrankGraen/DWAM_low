@@ -26,6 +26,7 @@ class RobotEnv(ManagerBasedRLEnv):
         # Buffers for distance decrease reward
         self._prev_robot_box_dist = torch.zeros(self.num_envs, device=self.device)  # (num_envs,)
         self._prev_box_goal_dist = torch.zeros(self.num_envs, device=self.device)  # (num_envs,)
+        self.reached_box_flags = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
     # ------------------------------ FOV Visualization setup -------------------------------
         self.debug_draw = None
@@ -49,7 +50,10 @@ class RobotEnv(ManagerBasedRLEnv):
         self._prev_closest_points = torch.zeros((self.num_envs, 3), dtype=torch.float, device=self.device)
         self._prev_trajectory_progress = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self.goal_position = torch.ones((self.num_envs, 3), dtype=torch.float, device=self.device) * 100  # Placeholder for goal position
-    
+        self.flag_trajectory_finished = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self.finish_goals = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
+        self.total_goals = cfg.trajectory_generator.num_waypoints  # Total number of waypoints in trajectory
+        self.flag_reach_goal = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
     # ------------------------------- Print Rewards setup -------------------------------
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.reward_log_dir : str = os.path.join("logs", "rewards", timestamp)
@@ -266,15 +270,22 @@ class RobotEnv(ManagerBasedRLEnv):
         
         if hasattr(self, 'closest_point_index'):
             self.closest_point_index[idx] = 0
+        # set initial goal position to the second waypoint in the trajectory
+        self.goal_position[idx] = self.current_trajectories[idx, 0, :3]  # (num_envs, 3)
 
         # Reset previous distances for distance decrease reward
         self._prev_robot_box_dist[idx] = get_distance(self, "robot", "box_1")[idx]
+        goal_pos = self.goal_position[idx]  # (num_envs, 3)
+        box_pos = self.scene["box_1"].data.body_link_state_w[:, 0, :3]  # (num_envs, 3)
+        self._prev_box_goal_dist[idx] = torch.norm(goal_pos - box_pos, dim=1)[idx]
         
-        self.goal_position[idx] = self.current_trajectories[idx, 1, :3]  # (num_envs, 3)
-
-        goal_pos = self.current_trajectories[:, -1, :3]  # (num_envs, 3)
-        robot_pos = self.scene["box_1"].data.body_link_state_w[:, 0, :3]  # (num_envs, 3)
-        self._prev_box_goal_dist[idx] = torch.norm(goal_pos - robot_pos, dim=1)[idx]
+        # Reset finish_goals and total_goals
+        self.finish_goals[idx] = 0
+        self.total_goals = self.cfg.trajectory_generator.num_waypoints  # Total number of waypoints in trajectory
+        
+        # Reset flag reach_goal
+        self.flag_reach_goal[idx] = False
+                
         # Done this way because SKRL requires the "episode" key in the extras dict to be present in order to log.
         self.extras["episode"] = self.extras["log"]
         

@@ -36,7 +36,7 @@ class TrajectoryGenerator:
     def __init__(self, cfg: TrajectoryConfig):
         self.cfg = cfg
         
-    def generate_trajectories(self, start_pos: torch.Tensor):
+    def generate_trajectories(self, start_pos: torch.Tensor) -> torch.Tensor:
         """
         为每个环境生成轨迹
         
