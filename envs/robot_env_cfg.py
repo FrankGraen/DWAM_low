@@ -459,7 +459,7 @@ class RewardsCfg:
     
     trajectory_distance_reward = RewTerm(
         func=mdp.trajectory_distance_reward,
-        weight=0.05,
+        weight=0.2,
         params={
             "distance_threshold": 0.2,
         },
@@ -530,7 +530,7 @@ class RewardsCfg:
     # Trajectory progress finish reward
     trajectory_progress_finish = RewTerm(
         func=mdp.trajectory_progress_finish_reward,
-        weight=25.0,
+        weight=30.0,
         params={
             "progress_threshold": 0.99,
             "distance_threshold": 0.2,
@@ -542,7 +542,7 @@ class RewardsCfg:
     # Slow down near finish reward
     slow_down_near_finish = RewTerm(
         func=mdp.slow_down_near_finish_reward,
-        weight=0.04,
+        weight=0.06,
         params={
             "box_name": "box_1",
             "progress_threshold": 0.8,
