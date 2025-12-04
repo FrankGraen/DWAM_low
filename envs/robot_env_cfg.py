@@ -532,7 +532,7 @@ class RewardsCfg:
         func=mdp.trajectory_progress_finish_reward,
         weight=25.0,
         params={
-            "progress_threshold": 0.95,
+            "progress_threshold": 0.99,
             "distance_threshold": 0.2,
             "speed_threshold": 0.1,
             "reward_amount": 5.0,

@@ -38,6 +38,7 @@ def is_success(
     # 条件3：速度足够慢
     box_lin_vel = env.scene[box_name].data.root_link_vel_w[:, :2]
     box_speed = torch.norm(box_lin_vel, dim=1)
+    
     speed_mask = box_speed < speed_threshold
     
     # 组合所有条件（与 reward 函数完全一致）
