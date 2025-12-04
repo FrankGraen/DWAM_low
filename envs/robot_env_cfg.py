@@ -622,7 +622,9 @@ class EventCfg:
     init_trajectory = EventTerm(
         func=mdp.init_trajectory,
         mode="reset",
-        params={},
+        params={
+            "box_name": "box_1",
+        },
     )
 
 @configclass

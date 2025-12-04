@@ -22,5 +22,7 @@ def init_trajectory(
     cfg = TrajectoryConfig()
     env.trajectory_generator = TrajectoryGenerator(cfg)
     box_pos = env.scene[box_name].data.body_link_state_w[env_ids, 0, :3]
-    new_trajectory = env.trajectory_generator.generate_trajectories(box_pos)    # 
+    new_trajectory = env.trajectory_generator.generate_trajectories(box_pos)
+    if not hasattr(env, "current_trajectories"):
+        env.current_trajectories = torch.zeros(env.num_envs, env.trajectory_generator.cfg.num_waypoints , 3, device=env.device)
     env.current_trajectories[env_ids] = new_trajectory
