@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from dataclasses import dataclass
 from typing import Literal
-TRAJECTORY_TYPE = "line"
+TRAJECTORY_TYPE = "s_curve"
 
 @dataclass
 class TrajectoryConfig:
