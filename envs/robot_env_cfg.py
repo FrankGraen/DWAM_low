@@ -297,7 +297,7 @@ class ObservationCfg:
             func=mdp.get_trajectory_history_and_future,
             params={
                 "past_steps": 1,
-                "future_steps": 3,
+                "future_steps": 1,
                 "flatten": True,
             },
             scale=0.1,  # Scale the trajectory points
@@ -508,8 +508,9 @@ class RewardsCfg:
         func=mdp.trajectory_velocity_alignment_reward,
         weight=0.01,
         params={
+            "box_name": "box_1",
             "velocity_alignment_weight": 0.01,
-            "speed_threshold": 0.05,
+            "speed_thereshold": 0.05,
         },
     )
     
