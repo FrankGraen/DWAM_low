@@ -514,7 +514,10 @@ def calc_piecewise_distance_reward(
 
     # Segment 2: near_distance < distance <= distance_threshold
     seg2 = (distance > near_distance) & (distance <= distance_threshold)
-    denom = torch.clamp(distance_threshold - near_distance, min=1e-6)
+    denom = torch.clamp(
+        torch.tensor(distance_threshold - near_distance, device=distance.device),
+        min=1e-6
+    )
     reward[seg2] = reward_scale * (distance_threshold - distance[seg2]) / denom
 
     # Segment 3: distance > distance_threshold
@@ -622,7 +625,7 @@ def trajectory_velocity_alignment_reward(
     env: ManagerBasedRLEnv,
     box_name: str = "box_1",
     velocity_alignment_weight: float = 0.01,
-    speeed_threshold: float = 0.05,
+    speed_thereshold: float = 0.05,
 ) -> torch.Tensor:
     """
     Reward based on the alignment between the box's velocity and the trajectory's direction.
@@ -631,6 +634,7 @@ def trajectory_velocity_alignment_reward(
         env (ManagerBasedRLEnv): The environment instance.
         box_name (str): The name of the box entity.
         velocity_alignment_weight (float): Weight for the velocity alignment reward.
+        speed_thereshold (float): Minimum speed to consider for reward.
     Returns:
         torch.Tensor: The trajectory velocity alignment-based reward, shape (num_envs,).
     """
@@ -660,7 +664,7 @@ def trajectory_velocity_alignment_reward(
     velocity_reward = torch.clamp(alignment, min=-0.5, max=1.0)
     
     # when speed is too low, no reward
-    active_speed_mask = box_speed > speeed_threshold    # (num_envs, 1)
+    active_speed_mask = box_speed > speed_thereshold    # (num_envs, 1)
     active_speed_mask = active_speed_mask.squeeze(-1)   # (num_envs, )
     
     velocity_alignment_reward = torch.zeros(env.num_envs, device=env.device)
