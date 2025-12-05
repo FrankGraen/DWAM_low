@@ -366,7 +366,12 @@ class RewardsCfg:
     distance_decrease = RewTerm(
         func=mdp.distance_decrease_reward,
         weight=0.01,
-        params={},
+        params={
+            "box_name": "box_1",
+            "robot_box_weight": 1.0,
+            "box_goal_weight": 0.0,
+            "scale": 10.0,
+        },
     )
 
     # robot reached box one-time reward
@@ -457,11 +462,39 @@ class RewardsCfg:
     #     },
     # )
     
-    trajectory_distance_reward = RewTerm(
-        func=mdp.trajectory_distance_reward,
+    # trajectory_distance_reward = RewTerm(
+    #     func=mdp.trajectory_distance_reward,
+    #     weight=0.2,
+    #     params={
+    #         "distance_threshold": 0.2,
+    #     },
+    # )
+    
+    trajectory_tracking_error_reward = RewTerm(
+        func=mdp.trajectory_tracking_error_reward,
         weight=0.2,
         params={
             "distance_threshold": 0.2,
+            "reward_scale": 0.1,
+            "near_distance": 0.1,
+        },
+    )
+    
+    target_tracking_error_reward = RewTerm(
+        func=mdp.target_tracking_error_reward,
+        weight=0.1,
+        params={
+            "distance_threshold": 0.2,
+            "reward_scale": 0.03,
+            "near_distance": 0.1,
+        }
+    )
+    
+    trajectory_distance_decrease_reward = RewTerm(
+        func=mdp.trajectory_distance_decrease_reward,
+        weight=0.015,
+        params={
+            "reward_scale": 0.02,
         },
     )
     
@@ -471,41 +504,14 @@ class RewardsCfg:
     #     params={},
     # )
     
-    # trajectory_following_reward_milestone = RewTerm(
-    #     func=mdp.trajectory_following_reward_milestone,
-    #     weight=8.0,
-    #     params={
-    #         "milestone": 0.5,
-    #         "milestone_reward": 1.0,
-    #         "distance_threshold": 0.2,
-    #     },
-    # )
-    
-    # trajectory_following_reward_milestone2 = RewTerm(
-    #     func=mdp.trajectory_following_reward_milestone,
-    #     weight=10.0,
-    #     params={
-    #         "milestone": 0.6,
-    #         "milestone_reward": 1.0,
-    #         "distance_threshold": 0.2,
-    #     },
-    # )
-    
-    # trajectory_following_reward_milestone3 = RewTerm(
-    #     func=mdp.trajectory_following_reward_milestone,
-    #     weight=10.0,
-    #     params={
-    #         "milestone": 0.9,
-    #         "milestone_reward": 1.0,
-    #         "distance_threshold": 0.2,
-    #     },
-    # )
-
-    # trajectory_trajectory_velocity_alignment_reward = RewTerm(
-    #     func=mdp.trajectory_velocity_alignment_reward,
-    #     weight=0.01,
-    #     params={},
-    # )
+    trajectory_trajectory_velocity_alignment_reward = RewTerm(
+        func=mdp.trajectory_velocity_alignment_reward,
+        weight=0.01,
+        params={
+            "velocity_alignment_weight": 0.01,
+            "speed_threshold": 0.05,
+        },
+    )
     
     # trajectory_off_track_penalty = RewTerm(
     #     func=mdp.trajectory_off_track_penalty,
@@ -530,11 +536,11 @@ class RewardsCfg:
     # Trajectory progress finish reward
     trajectory_progress_finish = RewTerm(
         func=mdp.trajectory_progress_finish_reward,
-        weight=30.0,
+        weight=5.0,
         params={
-            "progress_threshold": 0.99,
+            "progress_threshold": 0.95,
             "distance_threshold": 0.2,
-            "speed_threshold": 0.1,
+            "speed_threshold": 0.01,
             "reward_amount": 5.0,
         },
     )
@@ -567,7 +573,7 @@ class TerminationsCfg:
         params={
             "command_name": "box_follow_trajectory_finished",
             "box_name": "box_1",
-            "progress_threshold": 0.99,
+            "progress_threshold": 0.95,
             "distance_threshold": 0.2,
             "speed_threshold": 0.01,
         },

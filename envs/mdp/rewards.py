@@ -409,6 +409,147 @@ def reached_box_reward(
 
     return reward
 
+def target_tracking_error_reward(
+    env: ManagerBasedRLEnv,
+    box_name: str = "box_1",
+    distance_threshold: float = 0.2,
+    reward_scale: float = 0.03,
+    near_distance: float = 0.1,
+    speed_ref: float = 0.2,
+) -> torch.Tensor:
+    """ courage rbt to follow the future trajectory point
+
+    Args:
+        env (ManagerBasedRLEnv): _env description_
+        distance_threshold (float, optional): (float): distance for zero reward. Defaults to 0.2.
+        reward_scale (float, optional): (float): scale of the reward. Defaults to 0.1.
+        near_distance (float, optional): (float): distance for max reward. Defaults to 0.1.
+
+    Returns:
+        torch.Tensor: (num_envs,) piecewise distance reward
+    """
+    current_closest_idx = env.closest_point_index  # Current closest trajectory point index
+    target_idx = torch.clamp(current_closest_idx + 1, max=len(env.current_trajectories[0])-1)   # next point index
+    target_pos = env.current_trajectories[torch.arange(env.num_envs, device=env.device), target_idx][:, :2]  # (num_envs, 2)
+    box_pos = env.scene["box_1"].data.body_link_state_w[:, 0, :2]  # (num_envs, 2)
+    distance = torch.norm(box_pos - target_pos, dim=-1)  # shape: (num_envs,)
+    reward = calc_piecewise_distance_reward(
+        distance, near_distance, distance_threshold, reward_scale
+    )
+    
+    # 根据速度参考调整奖励
+    box_vel = env.scene[box_name].data.root_link_vel_w[:, :2]
+    box_speed = torch.norm(box_vel, dim=-1)  # (num_envs,)
+    speed_factor = torch.clamp(box_speed / speed_ref, max=1.0)
+    reward = reward * speed_factor
+
+    # 只有当机器人已经到达 box 时才启用该项奖励
+    if hasattr(env, "reached_box_flags"):
+        reward[~env.reached_box_flags] = 0.0
+
+    return reward
+
+def trajectory_tracking_error_reward(
+    env: ManagerBasedRLEnv,
+    box_name: str = "box_1",
+    distance_threshold: float = 0.2,
+    reward_scale: float = 0.1,
+    near_distance: float = 0.1,
+    speed_ref: float = 0.2,
+) -> torch.Tensor:
+    """
+    3 段分段线性的轨迹距离奖励：
+      - 0 <= d <= near_distance: 给常数 +reward_scale
+      - near_distance < d <= distance_threshold: 从 +reward_scale 线性下降到 0
+      - d > distance_threshold: 奖励为 0
+
+    仅在机器人已经到达箱子后（reached_box_flags == True）才生效。
+    """
+    # 没有轨迹距离信息时，直接返回 0
+    if not hasattr(env, "trajectory_distance"):
+        return torch.zeros(env.num_envs, device=env.device)
+
+    # d >= 0，箱子到轨迹的距离
+    distance = env.trajectory_distance  # shape: (num_envs,)
+
+    reward = calc_piecewise_distance_reward(
+        distance, near_distance, distance_threshold, reward_scale
+    )
+    
+    # 根据速度参考调整奖励
+    box_vel = env.scene[box_name].data.root_link_vel_w[:, :2]
+    box_speed = torch.norm(box_vel, dim=-1)  # (num_envs,)
+    speed_factor = torch.clamp(box_speed / speed_ref, max=1.0)
+    reward = reward * speed_factor
+
+    # 只有当机器人已经到达 box 时才启用该项奖励
+    if hasattr(env, "reached_box_flags"):
+        reward[~env.reached_box_flags] = 0.0
+
+    return reward
+
+def calc_piecewise_distance_reward(
+    distance: torch.Tensor,
+    near_distance: float,
+    distance_threshold: float,
+    reward_scale: float,
+) -> torch.Tensor:
+    """ Calc the reward with piecewise linear function
+
+    Args:
+        distance (torch.Tensor): (num_envs,) distance from box to target
+        near_distance (float): (float): distance for max reward
+        distance_threshold (float): (float): distance for zero reward
+        reward_scale (float): (float): scale of the reward
+
+    Returns:
+        torch.Tensor: (num_envs,) piecewise distance reward
+    """
+    num_envs = distance.shape[0]
+    reward = torch.zeros(num_envs, device=distance.device)
+
+    # Segment 1: distance <= near_distance
+    seg1 = distance <= near_distance
+    reward[seg1] = reward_scale
+
+    # Segment 2: near_distance < distance <= distance_threshold
+    seg2 = (distance > near_distance) & (distance <= distance_threshold)
+    denom = torch.clamp(distance_threshold - near_distance, min=1e-6)
+    reward[seg2] = reward_scale * (distance_threshold - distance[seg2]) / denom
+
+    # Segment 3: distance > distance_threshold
+    # reward remains 0
+
+    return reward
+
+def trajectory_distance_decrease_reward(
+    env: ManagerBasedRLEnv,
+    reward_scale: float = 0.02,
+) -> torch.Tensor:
+    """
+    Reward based on the decrease in trajectory distance.
+    Args:
+        env (ManagerBasedRLEnv): The environment instance.
+        reward_scale (float): Scale of the reward.
+    Returns:
+        torch.Tensor: The trajectory distance decrease-based reward, shape (num_envs,).
+    """
+    if not hasattr(env, 'trajectory_distance'):
+        return torch.zeros(env.num_envs, device=env.device)
+    
+    current_distance = env.trajectory_distance  # Current distance from box to trajectory
+
+    if not hasattr(env, '_prev_trajectory_distance'):
+        env._prev_trajectory_distance = torch.zeros(env.num_envs, dtype=torch.float, device=env.device)
+    
+    distance_decrease = env._prev_trajectory_distance - current_distance  # Positive if distance decreased
+
+    reward = distance_decrease * reward_scale
+
+    reward[~env.reached_box_flags] = 0.0  # Only apply reward if the robot has reached the box
+    # print("[DEBUG] Trajectory distance decrease reward:", reward)
+    return reward
+
 def trajectory_distance_reward(
     env: ManagerBasedRLEnv,
     box_name: str = "box_1",
@@ -480,7 +621,8 @@ def trajectory_progress_reward(
 def trajectory_velocity_alignment_reward(
     env: ManagerBasedRLEnv,
     box_name: str = "box_1",
-    velocity_alignment_weight: float = 0.005,
+    velocity_alignment_weight: float = 0.01,
+    speeed_threshold: float = 0.05,
 ) -> torch.Tensor:
     """
     Reward based on the alignment between the box's velocity and the trajectory's direction.
@@ -499,7 +641,7 @@ def trajectory_velocity_alignment_reward(
         return torch.zeros(env.num_envs, device=env.device)
         
     box_vel = env.scene[box_name].data.root_link_vel_w[:, :2]
-    box_speed = torch.norm(box_vel, dim=-1, keepdim=True) + 1e-6
+    box_speed = torch.norm(box_vel, dim=-1, keepdim=True) + 1e-6    # (num_envs, 1)
 
     closest_idx = env.closest_point_index  # Current closest trajectory point index
     lookahead_steps = 3  # Look ahead 3 points
@@ -516,11 +658,15 @@ def trajectory_velocity_alignment_reward(
     # Alignment
     alignment = torch.sum(vel_dir * traj_dir, dim=-1)
     velocity_reward = torch.clamp(alignment, min=-0.5, max=1.0)
-    velocity_alignment_reward = velocity_alignment_weight * velocity_reward
+    
+    # when speed is too low, no reward
+    active_speed_mask = box_speed > speeed_threshold    # (num_envs, 1)
+    active_speed_mask = active_speed_mask.squeeze(-1)   # (num_envs, )
+    
+    velocity_alignment_reward = torch.zeros(env.num_envs, device=env.device)
+    velocity_alignment_reward[active_speed_mask] = velocity_alignment_weight * velocity_reward[active_speed_mask]
     velocity_alignment_reward[~env.reached_box_flags] = 0.0  # Only apply reward if the robot has reached the box
     
-    # env._prev_closest_points = env.trajectory_closest_points.clone()
-
     return velocity_alignment_reward
 
 # def trajectory_off_track_penalty(
