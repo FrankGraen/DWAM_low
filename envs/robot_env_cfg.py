@@ -288,11 +288,11 @@ class ObservationCfg:
         #     params={"box_name": "box_1"},
         #     scale=1.0,
         # )
-        goal_observation = ObsTerm(
-            func=mdp.get_goal_observation,
-            params={},
-            scale=0.1,
-        )
+        # goal_observation = ObsTerm(
+        #     func=mdp.get_goal_observation,
+        #     params={},
+        #     scale=0.1,
+        # )
         trajectory_observation = ObsTerm(
             func=mdp.get_trajectory_history_and_future,
             params={
