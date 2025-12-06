@@ -433,8 +433,8 @@ def target_tracking_error_reward(
     target_pos = env.current_trajectories[torch.arange(env.num_envs, device=env.device), target_idx][:, :2]  # (num_envs, 2)
     box_pos = env.scene["box_1"].data.body_link_state_w[:, 0, :2]  # (num_envs, 2)
     distance = torch.norm(box_pos - target_pos, dim=-1)  # shape: (num_envs,)
-    reward = calc_piecewise_distance_reward(
-        distance, near_distance, distance_threshold, reward_scale
+    reward = calc_tiered_distance_reward(
+        distance, near_distance, reward_scale
     )
     
     # 根据速度参考调整奖励
@@ -485,6 +485,33 @@ def trajectory_tracking_error_reward(
     # 只有当机器人已经到达 box 时才启用该项奖励
     if hasattr(env, "reached_box_flags"):
         reward[~env.reached_box_flags] = 0.0
+
+    return reward
+
+# 阶梯型距离奖励函数
+def calc_tiered_distance_reward(
+    distance: torch.Tensor,
+    near_distance: float,
+    reward_scale: float,
+) -> torch.Tensor:
+    """ Calc the reward with tiered function
+
+    Args:
+        distance (torch.Tensor): (num_envs,) distance from box to target
+        near_distance (float): (float): distance for max reward
+        reward_scale (float): (float): scale of the reward
+
+    Returns:
+        torch.Tensor: (num_envs,) tiered distance reward
+    """
+    num_envs = distance.shape[0]
+    reward = torch.zeros(num_envs, device=distance.device)
+
+    # Segment 1: distance <= near_distance
+    seg1 = distance <= near_distance
+    reward[seg1] = reward_scale
+
+    # Segment 2: distance > near_distance set to zero
 
     return reward
 
