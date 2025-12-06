@@ -111,18 +111,57 @@ class TrajectoryGenerator:
         return trajectories
     
     def _generate_s_curve_trajectory(self, start_pos: torch.Tensor, device):
-        """生成S形曲线轨迹"""
+        """生成偏向圆心方向的 S 型曲线轨迹"""
         num_envs = start_pos.shape[0]
         num_points = self.cfg.num_waypoints
         
-        t = torch.linspace(0, 2 * np.pi, num_points, device=device)
-        t = t.unsqueeze(0).repeat(num_envs, 1)
+        # ===== 1. 主方向：指向圆心 =====
+        to_origin = - start_pos[:, :2]   # (num_envs, 2)
+        base_direction = to_origin / (torch.norm(to_origin, dim=-1, keepdim=True) + 1e-6)  # 单位向量
         
+        # ===== 2. 添加方向扰动（可选） =====
+        angle_noise = (torch.rand((num_envs, 1), device=device) - 0.5) * np.pi / 6  # ±15°
+        cos_theta = torch.cos(angle_noise)
+        sin_theta = torch.sin(angle_noise)
+
+        directions = torch.zeros((num_envs, 2), device=device)
+        directions[:, 0:1] = base_direction[:, 0:1] * cos_theta - base_direction[:, 1:2] * sin_theta
+        directions[:, 1:2] = base_direction[:, 0:1] * sin_theta + base_direction[:, 1:2] * cos_theta
+
+        # ===== 3. 垂直方向向量（用于 S 形波动）=====
+        # 若主方向为 (dx, dy)，垂直方向可取 (-dy, dx)
+        perp = torch.stack([-directions[:, 1], directions[:, 0]], dim=-1)  # (num_envs, 2)
+        perp = perp / (torch.norm(perp, dim=-1, keepdim=True) + 1e-6)
+
+        # ===== 4. 参数 t =====
+        t = torch.linspace(0, 1, num_points, device=device)
+        t = t.unsqueeze(0).repeat(num_envs, 1)  # (num_envs, num_points)
+
+        # ===== 5. 构建 S 形波动 =====
+        # 正弦从 0 到 2π
+        s = torch.sin(t * 2 * np.pi) * self.cfg.s_curve_amplitude  # (num_envs, num_points)
+
+        # ===== 6. 生成轨迹 =====
         trajectories = torch.zeros((num_envs, num_points, 3), device=device)
-        trajectories[:, :, 0] = start_pos[:, 0:1] + t / (2 * np.pi) * self.cfg.line_length
-        trajectories[:, :, 1] = start_pos[:, 1:2] + self.cfg.s_curve_amplitude * torch.sin(t)
+
+        # 主方向前进：t * length
+        main_step = t * self.cfg.line_length  # (num_envs, num_points)
+
+        trajectories[:, :, 0] = (
+            start_pos[:, 0:1] + 
+            main_step * directions[:, 0:1] + 
+            s * perp[:, 0:1]
+        )
+
+        trajectories[:, :, 1] = (
+            start_pos[:, 1:2] +
+            main_step * directions[:, 1:2] +
+            s * perp[:, 1:2]
+        )
+
+        # 高度保持不变
         trajectories[:, :, 2] = start_pos[:, 2:3]
-        
+
         return trajectories
     
     def _generate_square_trajectory(self, start_pos: torch.Tensor, device):
